@@ -6,9 +6,31 @@ rpc.exports = {
         }
         return info;
     },
+    memoryRanges: function (base, size) {
+        var start = ptr(base);
+        var end = start.add(size);
+
+        return Process.enumerateRanges({ protection: '---', coalesce: false })
+            .filter(function (range) {
+                var rangeEnd = range.base.add(range.size);
+                return range.base.compare(end) < 0 && rangeEnd.compare(start) > 0;
+            })
+            .map(function (range) {
+                return {
+                    base: range.base.toString(),
+                    size: range.size,
+                    protection: range.protection
+                };
+            });
+    },
     dumpMemory: function (base, size) {
         var p = ptr(base);
-        Memory.protect(p, size, 'rwx');
-        return p.readByteArray(size);
+        try {
+            return p.readByteArray(size);
+        } catch (e) {
+            // A mapping can change between enumeration and reading. Let the
+            // host preserve this portion of the image with zero-filled bytes.
+            return null;
+        }
     }
 }
